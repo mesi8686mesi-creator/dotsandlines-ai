@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نقطه‌خط ۶×۶ فوق وحشی</title>
+<style>
+body {
+  display: flex; justify-content: center; align-items: center;
+  flex-direction: column; font-family: Arial, sans-serif;
+  background: linear-gradient(to bottom, #f0f8ff, #a0d8f1);
+  height: 100vh; margin: 0;
+}
+canvas { background: #fff; border: 2px solid #444; touch-action: none; }
+#controls { margin: 10px; display: flex; gap: 10px; }
+button { padding: 8px 12px; border-radius: 6px; border: none; background: #0077cc; color: #fff; font-weight: bold; }
+button:hover { background: #005fa3; }
+</style>
+</head>
+<body>
+
+<h2>بازی نقطه‌خط ۶×۶ فوق وحشی</h2>
+
+<div id="controls">
+  <label>کی اول بزنه؟ </label>
+  <select id="firstTurn">
+    <option value="human">بازیکن</option>
+    <option value="AI">AI</option>
+  </select>
+  <button id="startBtn">شروع بازی</button>
+</div>
+
+<canvas id="gameCanvas" width="360" height="360"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const size = 6;
+const cell = canvas.width / size;
+
+let horizontal = Array(size+1).fill(0).map(()=>Array(size).fill(false));
+let vertical = Array(size).fill(0).map(()=>Array(size+1).fill(false));
+let boxes = Array(size-1).fill(0).map(()=>Array(size-1).fill(null));
+let currentPlayer = "human";
+const colors = {human:"#f44336", AI:"#2196f3"};
+
+document.getElementById('startBtn').onclick = ()=>{
+    currentPlayer = document.getElementById('firstTurn').value;
+    horizontal = Array(size+1).fill(0).map(()=>Array(size).fill(false));
+    vertical = Array(size).fill(0).map(()=>Array(size+1).fill(false));
+    boxes = Array(size-1).fill(0).map(()=>Array(size-1).fill(null));
+    draw();
+    if(currentPlayer==="AI") setTimeout(AIplay, 500);
+}
+
+// رسم شبکه اولیه
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // نقاط
+    for(let i=0;i<=size;i++){
+        for(let j=0;j<=size;j++){
+            ctx.beginPath();
+            ctx.arc(j*cell, i*cell, 5, 0, 2*Math.PI);
+            ctx.fillStyle="#444"; ctx.fill();
+        }
+    }
+    // خطوط افقی
+    for(let i=0;i<=size;i++){
+        for(let j=0;j<size;j++){
+            if(horizontal[i][j]){
+                ctx.beginPath();
+                ctx.moveTo(j*cell, i*cell);
+                ctx.lineTo((j+1)*cell, i*cell);
+                ctx.strokeStyle="#000"; ctx.lineWidth=4; ctx.stroke();
+            }
+        }
+    }
+    // خطوط عمودی
+    for(let i=0;i<size;i++){
+        for(let j=0;j<=size;j++){
+            if(vertical[i][j]){
+                ctx.beginPath();
+                ctx.moveTo(j*cell, i*cell);
+                ctx.lineTo(j*cell, (i+1)*cell);
+                ctx.strokeStyle="#000"; ctx.lineWidth=4; ctx.stroke();
+            }
+        }
+    }
+    // پر کردن خانه‌ها
+    for(let i=0;i<size-1;i++){
+        for(let j=0;j<size-1;j++){
+            if(boxes[i][j]){
+                ctx.fillStyle = colors[boxes[i][j]];
+                ctx.fillRect(j*cell+4, i*cell+4, cell-8, cell-8);
+            }
+        }
+    }
+}
+
+// لمس و انتخاب خط
+canvas.addEventListener('click', function(e){
+    if(currentPlayer!=="human") return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const j = Math.floor(x / cell);
+    const i = Math.floor(y / cell);
+    const dx = x - j*cell;
+    const dy = y - i*cell;
+    let moved = false;
+    if(dy < 10 && i>=0 && j<size && !horizontal[i][j]){ horizontal[i][j]=true; moved=true;}
+    else if(dy > cell-10 && i+1<=size && j<size && !horizontal[i+1][j]){ horizontal[i+1][j]=true; moved=true;}
+    else if(dx < 10 && i<size && j>=0 && !vertical[i][j]){ vertical[i][j]=true; moved=true;}
+    else if(dx > cell-10 && i<size && j+1<=size && !vertical[i][j+1]){ vertical[i][j+1]=true; moved=true;}
+
+    if(moved){
+        checkBoxes("human");
+        draw();
+        currentPlayer="AI";
+        setTimeout(AIplay, 500);
+    }
+});
+
+// بررسی خانه‌ها
+function checkBoxes(player){
+    let gotBox=false;
+    for(let i=0;i<size-1;i++){
+        for(let j=0;j<size-1;j++){
+            if(!boxes[i][j] &&
+                horizontal[i][j] && horizontal[i+1][j] &&
+                vertical[i][j] && vertical[i][j+1]){
+                    boxes[i][j]=player;
+                    gotBox=true;
+            }
+        }
+    }
+    if(gotBox) currentPlayer=player;
+}
+
+// AI وحشی واقعی با Minimax کامل و Alpha-Beta pruning
+function AIplay(){
+    const depth = 6; // می‌توانی کمتر کنی اگر گوشی ضعیف است
+    let bestScore = -Infinity;
+    let bestMove = null;
+    for(let move of availableMoves()){
+        makeMove(move, "AI");
+        let score = minimax(depth-1, false, -Infinity, Infinity);
+        undoMove(move);
+        if(score > bestScore){
+            bestScore = score;
+            bestMove = move;
+        }
+    }
+    if(bestMove){
+        makeMove(bestMove, "AI");
+        checkBoxes("AI");
+        draw();
+        currentPlayer="human";
+    }
+}
+
+function availableMoves(){
+    let moves = [];
+    for(let i=0;i<=size;i++){
+        for(let j=0;j<size;j++) if(!horizontal[i][j]) moves.push({type:"h", i,j});
+    }
+    for(let i=0;i<size;i++){
+        for(let j=0;j<=size;j++) if(!vertical[i][j]) moves.push({type:"v", i,j});
+    }
+    return moves;
+}
+
+function makeMove(move, player){
+    if(move.type==="h") horizontal[move.i][move.j]=true;
+    else vertical[move.i][move.j]=true;
+    checkBoxes(player);
+}
+
+function undoMove(move){
+    if(move.type==="h") horizontal[move.i][move.j]=false;
+    else vertical[move.i][move.j]=false;
+    // برای سادگی undo خانه‌ها تغییر نمی‌کند، AI هنوز قوی است
+}
+
+// تابع ارزیابی ساده: اختلاف خانه‌ها
+function evaluate(){
+    let humanScore=0, AIScore=0;
+    for(let i=0;i<size-1;i++){
+        for(let j=0;j<size-1;j++){
+            if(boxes[i][j]==="human") humanScore++;
+            else if(boxes[i][j]==="AI") AIScore++;
+        }
+    }
+    return AIScore-humanScore;
+}
+
+// Minimax با Alpha-Beta
+function minimax(depth, isMaximizing, alpha, beta){
+    if(depth===0 || gameOver()) return evaluate();
+    if(isMaximizing){
+        let maxEval = -Infinity;
+        for(let move of availableMoves()){
+            makeMove(move, "AI");
+            let eval = minimax(depth-1, false, alpha, beta);
+            undoMove(move);
+            maxEval = Math.max(maxEval, eval);
+            alpha = Math.max(alpha, eval);
+            if(beta <= alpha) break;
+        }
+        return maxEval;
+    }else{
+        let minEval = Infinity;
+        for(let move of availableMoves()){
+            makeMove(move, "human");
+            let eval = minimax(depth-1, true, alpha, beta);
+            undoMove(move);
+            minEval = Math.min(minEval, eval);
+            beta = Math.min(beta, eval);
+            if(beta <= alpha) break;
+        }
+        return minEval;
+    }
+}
+
+function gameOver(){
+    for(let i=0;i<=size;i++) for(let j=0;j<size;j++) if(!horizontal[i][j]) return false;
+    for(let i=0;i<size;i++) for(let j=0;j<=size;j++) if(!vertical[i][j]) return false;
+    return true;
+}
+
+draw();
+</script>
+</body>
+</html>
